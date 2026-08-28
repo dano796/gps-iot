@@ -7,14 +7,13 @@
 #include "LoRaBoards.h"
 #include "config.h"
 #include <MD5Builder.h>
-#include <CJSON.h> 
 
 #if !defined(USING_SX1276) && !defined(USING_SX1278)
 #error "LoRa example is only allowed to run SX1276/78. For other RF models, please run examples/RadioLibExamples"
 #endif
 
 #ifndef HAS_GPS
-#error "Esta placa no tiene GPS habilitado en utilities.h (falta HAS_GPS)"
+#error "This example requires a GPS module. Please define HAS_GPS in config.h"
 #endif
 
 // state machine 
@@ -172,57 +171,25 @@ static void doBundling()
 static void printReadable()
 {
     Serial.println();
-    Serial.println("-- enviando --");
+    Serial.println("-- sending --");
     Serial.println(payload);              // identico a lo que recibe el otro lado
     Serial.println("--");
 
     if (haveEnv) {
-        Serial.printf("Pruning...... temp %u/%u muestras, hum %u/%u muestras\n",
-                      keptTemp, sampleCount, keptHum, sampleCount);
+        Serial.printf("Pruning...... T:%.1fC (%u/%u samples)  H:%.1f%% (%u/%u samples)\n",
+                      envTemp, keptTemp, sampleCount, envHum, keptHum, sampleCount);
     } else {
-        Serial.printf("Pruning...... sin muestras (%s)\n",
-                      sensorOk ? "midiendo" : "HDC1080 ausente");
+        Serial.printf("Pruning...... no samples (%s)\n",
+                      sensorOk ? "measuring" : "HDC1080 absent");
     }
     if (!haveFix) {
-        Serial.printf("NMEA......... %lu sentencias validas, %lu con checksum malo\n",
+        Serial.printf("GPS.......... no fix, %u satellites\n",
+                      (unsigned)(gps.satellites.isValid() ? gps.satellites.value() : 0));
+        Serial.printf("NMEA......... %lu valid sentences, %lu failed checksum\n",
                       (unsigned long)gps.passedChecksum(),
                       (unsigned long)gps.failedChecksum());
     }
     Serial.printf("Payload...... %u bytes\n", (unsigned)strlen(payload));
-}
-
-static void drawScreen()
-{
-    if (!u8g2) {
-        return;
-    }
-    char buf[32];
-    u8g2->clearBuffer();
-
-    if (haveFix) {
-        snprintf(buf, sizeof(buf), "#%d Sat:%u", counter,
-                 (unsigned)(gps.satellites.isValid() ? gps.satellites.value() : 0));
-        u8g2->drawStr(0, 12, buf);
-        snprintf(buf, sizeof(buf), "Lat:%.6f", gps.location.lat());
-        u8g2->drawStr(0, 26, buf);
-        snprintf(buf, sizeof(buf), "Lon:%.6f", gps.location.lng());
-        u8g2->drawStr(0, 40, buf);
-    } else {
-        snprintf(buf, sizeof(buf), "#%d sin fix", counter);
-        u8g2->drawStr(0, 12, buf);
-        snprintf(buf, sizeof(buf), "Sats:%u",
-                 (unsigned)(gps.satellites.isValid() ? gps.satellites.value() : 0));
-        u8g2->drawStr(0, 26, buf);
-        u8g2->drawStr(0, 40, "Buscando...");
-    }
-
-    if (haveEnv) {
-        snprintf(buf, sizeof(buf), "T:%.1fC H:%.0f%%", envTemp, envHum);
-    } else {
-        snprintf(buf, sizeof(buf), "%s", sensorOk ? "Sensor: midiendo" : "Sensor: ausente");
-    }
-    u8g2->drawStr(0, 54, buf);
-    u8g2->sendBuffer();
 }
 
 static void doTransmit()
@@ -232,7 +199,6 @@ static void doTransmit()
     LoRa.endPacket();
 
     printReadable();
-    drawScreen();
     counter++;
 }
 
@@ -247,9 +213,9 @@ void setup()
     sensorOk = (Wire.endTransmission() == 0);
     if (sensorOk) {
         hdc1080.begin(HDC1080_ADDR);
-        Serial.println("HDC1080 detectado en 0x40");
+        Serial.println("HDC1080 detected in 0x40");
     } else {
-        Serial.println("WARN: HDC1080 no responde en 0x40 (se enviara NA)");
+        Serial.println("WARN: HDC1080 not responding in 0x40 (sending NA)");
     }
 
 #ifdef  RADIO_TCXO_ENABLE
